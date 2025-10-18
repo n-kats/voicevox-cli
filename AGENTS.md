@@ -1,36 +1,28 @@
 # Repository Guidelines
 
-## Project Structure & Module Organization
-- `sample.py`: repository内で CLI を即試せるサンプルスクリプト。コア処理は `src/voicevox_cli/` に実装。
-- `pyproject.toml`: source of truth for metadataと依存の登録先。HTTP/AIO 用の `aiohttp` を通常依存に追加し、`simpleaudio` など OS 依存の再生ドライバは `[project.optional-dependencies.audio]` で管理。
-- Expand into `src/voicevox_cli/` (create the package when needed) and mirror tests under `tests/`.
+## プロジェクト構成とモジュール構成
+- `src/voicevox_cli/` にパッケージ本体がまとまり、`cli.py` がエントリポイント、`pipeline.py` が合成フロー、`playback.py` が再生バックエンドです。
+- 追加モジュールは `src/voicevox_cli/` 配下に配置し、対応するテストを `tests/` に新設してください（現状未作成）。
+- ルート直下の `README.md` が利用者向け案内、`pyproject.toml` がメタデータと依存定義のソースです。
 
-## Build, Test, and Development Commands
-- `python -m venv .venv && source .venv/bin/activate`: create and activate the virtual environment.
-- `python -m pip install -e .[dev]`: install the project in editable mode; audio 再生用に `.[audio]` を併せて入れる場合は環境に応じて判断。
-- `python sample.py --text "こんにちは"`: VOICEVOX ENGINE (既定: `http://127.0.0.1:50021`) に対してストリーミング処理を実行。
-- `uvx --from . voicevox-cli --text "こんにちは"`: パッケージ経由で CLI を呼ぶ。開発中は `python -m voicevox_cli.cli --text ...` も可。
+## ビルド・テスト・開発コマンド
+- `uv pip install -e .[dev]` で開発依存込みで導入します。音声再生に simpleaudio が必要なら `.[audio]` を併用。
+- `uvx --from . voicevox-cli --text "テスト"` でソースから CLI を即実行できます。インストール済みなら単に `voicevox-cli ...`。
+- テストは `pytest` を採用予定です。追加後は `pytest -q` を実行できるよう `pyproject.toml` に設定してください。
+- simpleaudio を利用する場合は `uv pip install -e .[audio]` を実行し、OS 側のサウンドデバイスを確認してください。
 
-## Coding Style & Naming Conventions
-- Follow PEP 8 with four-space indentation, snake_case for functions and variables, and UPPER_CASE for constants such as `VOICEVOX_URL_DEFAULT`.
-- Add type hints on public functions and explicit return types on coroutines.
-- Keep modules cohesive—split networking helpers, audio utilities, and CLI wiring into dedicated files once `src/voicevox_cli/` exists.
-- Run `python -m ruff check .` (or your preferred linter) and track config in `pyproject.toml`.
+## コーディングスタイルと命名規約
+- PEP 8 と型ヒントを基本とし、公開関数には引数・戻り値の型を明示します。
+- ロガーは `logging.getLogger(__name__)` を使用し、INFO 以上で動作が追えるようにしてください。
+- CLI に追加するオプションは短縮形も検討し、`VOICEVOX_CLI_XXX` 形式の環境変数と整合させます。
+- 非同期コードではタスクキャンセルを忘れず、`asyncio.gather(..., return_exceptions=True)` などで資源を回収します。
 
-## Testing Guidelines
-- Adopt `pytest` (declare it under `project.optional-dependencies.dev`) and mirror modules in `tests/`.
-- Name test files `test_<module>.py` and mark async cases with `pytest.mark.asyncio`.
-- Cover sentence splitting edge cases, HTTP layer stubs, and audio queueing logic; mock VOICEVOX calls with `aiohttp` helpers.
-- Run `pytest -q` locally and surface coverage gaps in PR descriptions.
+## テストガイドライン
+- 文分割、HTTP 通信、再生制御それぞれに単体テストを用意し、VOICEVOX ENGINE 呼び出しはモック化してください。
+- 例外発生時のリトライやタスクキャンセルもテスト対象です。回帰防止のためにシナリオテストを追加します。
+- simpleaudio など OS 依存部分は条件付きでスキップし、エラー時は代替バックエンドが選択されることを確認します。
 
-## Commit & Pull Request Guidelines
-- Use present-tense, imperative commit subjects (`Add streaming retries`) and wrap at ~72 characters.
-- Group related changes together; explain non-obvious decisions in the body.
-- Open PRs with a short summary, testing checklist, linked issues, and media when behavior changes.
-- Ask for review once lint and tests pass, and flag risky areas (networking, async concurrency).
-
-## VOICEVOX Setup Notes
-- Run a VOICEVOX Engine locally for end-to-end testing; set `VOICEVOX_URL` if you use a custom host.
-- Keep API keys or proprietary voices out of Git; use environment variables or ignored config files.
-- CLI playback は `--player auto|ffplay|simpleaudio|none` で切替可能。FFmpeg が導入済みなら `--player ffplay`（または既定の `auto`）が最も安定。
-- simpleaudio の挙動が不安定な環境では `python scripts/check_simpleaudio.py --repeats 5` で単体検証し、問題があれば `--player ffplay` や `--player none` を選択。
+## コミット・Pull Request ガイドライン
+- コミットメッセージは命令形・現在形で 50 文字目安の概要を付け、必要なら本文で背景を補足します。
+- PR には変更概要、テスト結果、VOICEVOX ENGINE への影響（必要なバージョンや追加設定）を記載します。
+- ログレベルや環境変数の変更時は README/AGENTS の更新をセットにし、レビュワーが動作確認しやすい情報を提示してください。

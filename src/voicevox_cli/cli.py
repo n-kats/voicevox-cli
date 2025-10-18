@@ -93,16 +93,10 @@ def _apply_env_overrides(args: argparse.Namespace) -> None:
     env = os.environ
 
     url_env = env.get(ENV_ENGINE_URL)
-    legacy_url_env = env.get("VOICEVOX_CLI_URL")
     if args.url:
         resolved_url = args.url
     elif url_env:
         resolved_url = url_env
-    elif legacy_url_env:
-        logging.getLogger(__name__).warning(
-            "VOICEVOX_CLI_URL は将来のバージョンで削除予定です。VOICEVOX_CLI_ENGINE_URL を使用してください。"
-        )
-        resolved_url = legacy_url_env
     else:
         resolved_url = VOICEVOX_URL_DEFAULT
     args.url = resolved_url

@@ -1,67 +1,76 @@
 # voicevox-cli
 
-VOICEVOX ENGINE にテキストを送り、文ごとにストリーミング再生するための軽量 CLI です。  
-`ffplay` (FFmpeg) を優先利用し、見つからない場合は `simpleaudio` にフォールバックします。
+VOICEVOX ENGINE にテキストを送り、文単位でストリーミング再生するためのシンプルな CLI です。  
+`ffplay` (FFmpeg) を優先し、見つからない場合は `simpleaudio` を自動で利用します。
 
-## 必要環境
+## セットアップ
 
-- Python 3.11 以上
-- VOICEVOX ENGINE がローカルまたはネットワーク上で稼働していること
-- 音声再生:
-  - 推奨: FFmpeg (`ffplay` コマンドが利用可能であること)
-  - 代替: `simpleaudio` をインストール (`uv pip install -e .[audio]`) し、OS 側の ALSA/CoreAudio などが利用可能であること
-
-## インストール
+1. Python 3.11 以上と VOICEVOX ENGINE（例: `voicevox_engine --use_gpu 0`）を起動しておきます。  
+   既定の接続先は `http://127.0.0.1:50021` です。
+2. FFmpeg（`ffplay`）をインストールします。Linux なら `sudo apt install ffmpeg`、macOS なら `brew install ffmpeg` など、環境に応じたパッケージマネージャーを利用してください。PATH に `ffplay` が存在することを確認します。
+3. CLI のインストール方法は用途に合わせて選べます。
 
 ```bash
-# 開発用クローンでの利用
+# 公開リポジトリから最新リリースを取得
+uv tool install git+https://github.com/n-kats/voicevox-cli
+
+# または pip を使う場合
+pip install git+https://github.com/n-kats/voicevox-cli
+
+# ローカル開発クローンで利用する場合
 uv pip install -e .
 
-# simpleaudio を使う場合
+# 音声再生に simpleaudio を使いたい場合
 uv pip install -e .[audio]
-```
 
-`uvx` からワンショットで呼び出したい場合は、同ディレクトリで次のように実行します。
-
-```bash
+# ワンショット実行（カレントディレクトリのソースから）
 uvx --from . voicevox-cli --text "こんにちは"
 ```
 
 ## 使い方
 
 ```bash
-voicevox-cli --file input.txt
 voicevox-cli --text "ずんだもんがしゃべります"
-voicevox-cli -f script.md --player ffplay
+voicevox-cli -f script.md
+voicevox-cli               # 引数がなければヘルプを表示
 ```
 
-- `--file` / `-f`: UTF-8 テキストファイルを読み上げます。`-` を指定すると標準入力を利用できます。
-- `--text` / `-t`: コマンドラインから直接テキストを渡します。
-- `--player`: `auto` (既定) / `ffplay` / `simpleaudio` / `none` から再生バックエンドを選択。`auto` は `ffplay` → `simpleaudio` → `none` の順で判断します。
-- `--ffplay-path`: PATH に `ffplay` が無い場合に明示的にパスを指定します。
-- そのほか、速度やピッチなど VOICEVOX ENGINE の AudioQuery パラメータも CLI で調整できます。
+- `-t/--text`: 直接文字列を渡します。  
+- `-f/--file`: UTF-8 テキストファイルを指定します（`-` で標準入力）。  
+- `--speed` / `--volume`: VOICEVOX ENGINE の `speedScale` / `volumeScale` を上書き。
 
-### 環境変数
+### 環境変数による既定値の変更
 
-以下の環境変数で CLI 引数の既定値を上書きできます（CLI 引数が指定されている場合はそちらが優先されます）。
-
-| 環境変数名           | 内容                         | 例                    |
-|----------------------|------------------------------|-----------------------|
-| `VOICEVOX_CLI_ENGINE_URL`   | VOICEVOX ENGINE のベース URL | `http://127.0.0.1:50021` |
-| `VOICEVOX_CLI_SPEED` | `speedScale` の既定値        | `1.15`                |
-| `VOICEVOX_CLI_VOLUME`| `volumeScale` の既定値       | `0.9`                 |
+| 変数名 | 内容 | 備考 |
+| --- | --- | --- |
+| `VOICEVOX_CLI_ENGINE_URL` | VOICEVOX ENGINE のベース URL | 例: `http://127.0.0.1:50021` |
+| `VOICEVOX_CLI_SPEED` | `speedScale` の既定値 | 引数が優先されます |
+| `VOICEVOX_CLI_VOLUME` | `volumeScale` の既定値 | 引数が優先されます |
 
 ## トラブルシューティング
 
-- simpleaudio の安定性を確認したい場合は `python scripts/check_simpleaudio.py --repeats 5` を実行してください。ここでクラッシュする場合は FFmpeg を導入し `--player ffplay` を利用するか、`--player none` で再生をスキップしてください。
-- VOICEVOX ENGINE との通信に失敗した場合は URL とスピーカー ID を確認し、エンジンが起動しているかを再確認してください。
+- 「Session is closed」などの接続エラーが出る場合は VOICEVOX ENGINE の起動状態と URL を確認し、リトライで解消しない場合はログを併せて調査してください。
+- simpleaudio 利用時にクラッシュする／音が出ない場合は `--player ffplay` へ切り替えるか、`--player none` で再生を抑止してください。
 
-## 開発
+## 開発フロー
 
 ```bash
 uv pip install -e .[dev]
 pytest
-python scripts/check_simpleaudio.py --repeats 3
 ```
 
-コントリビューション時は `AGENTS.md` のガイドラインに従ってください。
+PR を送る際は `AGENTS.md` のガイドラインに従い、再生バックエンドや VOICEVOX ENGINE への影響があれば必ず記載してください。
+
+## 予備機能: `--player` オプション
+
+`--player` で再生バックエンドを切り替えられます。既定は `auto` で、`ffplay` が見つかれば自動的に使用します。
+
+```bash
+voicevox-cli -f script.md --player ffplay          # 明示的に ffplay を使う（PATH にない場合は --ffplay-path で指定）
+voicevox-cli -t "テキスト" --player simpleaudio     # simpleaudio を使う（別途インストールが必要）
+voicevox-cli --text "テキスト" --player none        # 音声を再生せず合成だけ行う
+```
+
+- `ffplay`: もっとも安定した再生方法です。
+- `simpleaudio`: オプション依存。環境によってはサウンド設定が必要だったり不安定になる場合があります。
+- `none`: 再生をスキップします。音声デバイスがない環境や CI で便利です。
